@@ -5,3 +5,4 @@ authors = ["Hideo Hattori <hattori-h@klab.com>"]
 
 [dependencies]
 image = "0.10"
+chrono = "0.2"
