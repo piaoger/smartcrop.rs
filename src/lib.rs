@@ -54,9 +54,9 @@ fn saturation(pixel: Rgba<u8>) -> f64 {
     let r = pixel[0] as f64;
     let g = pixel[1] as f64;
     let b = pixel[2] as f64;
-    let id = vec![r/255., g/255., b/255.];
-    let maximum = id.iter().fold(0.0/0.0, |m, v| v.max(m));
-    let minumum = id.iter().fold(0.0/0.0, |m, v| v.min(m));
+    let id = vec![r / 255., g / 255., b / 255.];
+    let maximum = id.iter().fold(0.0 / 0.0, |m, v| v.max(m));
+    let minumum = id.iter().fold(0.0 / 0.0, |m, v| v.min(m));
     if maximum == minumum {
         return 0.;
     }
@@ -100,7 +100,7 @@ pub struct SmartCrop {
     rule_of_thirds: bool,
     prescale: bool,
     debug: bool,
-    //save_quality: i32,    // not support
+    // save_quality: i32,    // not support
     file_type: String,
 }
 
@@ -136,7 +136,7 @@ impl Default for SmartCrop {
             rule_of_thirds: true,
             prescale: true,
             debug: false,
-            //save_quality: 90,
+            // save_quality: 90,
             file_type: "JPEG".to_string(),
         }
     }
@@ -155,15 +155,13 @@ impl SmartCrop {
         let mut scale = 1.;
         let mut prescale = 1.;
         if options.width != 0 && options.height != 0 {
-            scale = f64::min(img_width as f64 / options.width as f64,
-                             img_height as f64 / options.height as f64);
+            scale = f64::min(img_width as f64 / options.width as f64, img_height as f64 / options.height as f64);
             options.crop_width = f64::floor(options.width as f64 * scale) as i32;
             options.crop_height = f64::floor(options.height as f64 * scale) as i32;
             // img = 100x100, width = 95x95, scale = 100/95, 1/scale > min
             // don't set minscale smaller than 1/scale
             // -> don't pick crops that need upscaling
-            options.min_scale = f64::min(options.max_scale,
-                                         f64::max(1. / scale, (options.min_scale)));
+            options.min_scale = f64::min(options.max_scale, f64::max(1. / scale, (options.min_scale)));
         }
 
         if options.width != 0 && options.height != 0 && options.prescale != false {
@@ -208,9 +206,8 @@ impl SmartCrop {
             let mut lightness = if x == 0 || x >= w - 1 || y == 0 || y >= h - 1 {
                 sample(pixel)
             } else {
-                sample(pixel) * 4. - sample(img.get_pixel(x-1, y)) - 
-                    sample(img.get_pixel(x, y-1)) - sample(img.get_pixel(x, y+1)) -
-                    sample(img.get_pixel(x+1, y))
+                sample(pixel) * 4. - sample(img.get_pixel(x - 1, y)) - sample(img.get_pixel(x, y - 1)) -
+                sample(img.get_pixel(x, y + 1)) - sample(img.get_pixel(x + 1, y))
             };
             lightness = if lightness < 0. {
                 0.
@@ -232,7 +229,7 @@ impl SmartCrop {
             let lightness = sample(pixel) / 255.;
             let skin = self.get_skin_color(pixel);
             let r: u8 = if skin > self.skin_threshold && lightness >= self.skin_brightness_min &&
-                    lightness <= self.skin_brightness_max {
+                           lightness <= self.skin_brightness_max {
                 let mut tr = (skin - self.skin_threshold) * (255. / (1. - self.skin_threshold));
                 tr = if tr < 0. {
                     0.
@@ -257,9 +254,8 @@ impl SmartCrop {
             let pixel = img.get_pixel(x, y);
             let lightness = sample(pixel) / 255.;
             let sat = saturation(pixel);
-            let b: u8 = if sat > self.saturation_threshold &&
-                    lightness >= self.saturation_brightness_min &&
-                    lightness <= self.saturation_brightness_max {
+            let b: u8 = if sat > self.saturation_threshold && lightness >= self.saturation_brightness_min &&
+                           lightness <= self.saturation_brightness_max {
                 let mut tr = (sat - self.saturation_threshold) * (255. / (1. - self.saturation_threshold));
                 tr = if tr < 0. {
                     0.
@@ -275,7 +271,7 @@ impl SmartCrop {
             *output_pixel = Rgb([output_pixel[0], output_pixel[1], b]);
         }
         if self.debug {
-            let _ =output.save("sat.jpg");
+            let _ = output.save("sat.jpg");
         }
     }
 
@@ -284,14 +280,14 @@ impl SmartCrop {
         let g = pixel[1] as f64;
         let b = pixel[2] as f64;
         let (rt, gt, bt) = self.skin_color;
-        let mag = f64::sqrt(r*r + g*g + b*b);
+        let mag = f64::sqrt(r * r + g * g + b * b);
         let (rd, gd, bd) = if mag == 0. {
             (-rt, -gt, -bt)
         } else {
-            (r/mag-rt, g/mag-gt, b/mag-bt)
+            (r / mag - rt, g / mag - gt, b / mag - bt)
         };
 
-        1. - f64::sqrt(rd * rd + gd*gd + bd*bd)
+        1. - f64::sqrt(rd * rd + gd * gd + bd * bd)
     }
 
     fn importance(&mut self, crop: &CropSize, x: u32, y: u32) -> f64 {
@@ -336,9 +332,8 @@ impl SmartCrop {
             }
         }
 
-        let total = (detail * self.detail_weight +
-                     skin * self.skin_weight +
-                     saturation * self.saturation_weight) / crop.width as f64 / crop.height as f64;
+        let total = (detail * self.detail_weight + skin * self.skin_weight + saturation * self.saturation_weight) /
+                    crop.width as f64 / crop.height as f64;
         CropScore {
             total: total,
             detail: detail,
@@ -355,10 +350,10 @@ impl SmartCrop {
         self.detect_skin(&img, &mut output);
         self.detect_saturation(&img, &mut output);
 
-        let score_output = ImageRgb8(output).resize(
-            ((size_x as f64 / self.score_down_sample as f64) as f64).ceil() as u32,
-            ((size_y as f64 / self.score_down_sample as f64) as f64).ceil() as u32,
-            image::FilterType::Lanczos3);
+        let score_output = ImageRgb8(output)
+            .resize(((size_x as f64 / self.score_down_sample as f64) as f64).ceil() as u32,
+                    ((size_y as f64 / self.score_down_sample as f64) as f64).ceil() as u32,
+                    image::FilterType::Lanczos3);
 
         let mut top_score = i32::min_value() as f64;
         let mut top_crop: Option<CropInfo> = None;
@@ -381,11 +376,7 @@ impl SmartCrop {
     fn crops(&mut self, img: DynamicImage) -> Vec<CropInfo> {
         let mut crops = Vec::new();
         let (w, h) = img.dimensions();
-        let min_dimension = if w > h {
-            h
-        } else {
-            w
-        };
+        let min_dimension = if w > h { h } else { w };
         let crop_width = if self.crop_width != 0 {
             self.crop_width
         } else {
@@ -399,7 +390,8 @@ impl SmartCrop {
         let range_min = (self.min_scale * 100.) as u32;
         let range_max = ((self.max_scale + self.scale_step) * 100.) as u32;
         let range_step = (self.scale_step * 100.) as u32;
-        let mut scales: Vec<f64> = (range_min..range_max).filter(|v| v % range_step == 0).map(|v| v as f64 / 100.).collect();
+        let mut scales: Vec<f64> =
+            (range_min..range_max).filter(|v| v % range_step == 0).map(|v| v as f64 / 100.).collect();
         scales.reverse();
 
         for scale in scales.iter() {
@@ -411,14 +403,14 @@ impl SmartCrop {
                     if !((x as f64 + crop_width as f64 * scale) as u32 <= w) {
                         break;
                     }
-                    crops.push(CropInfo{
+                    crops.push(CropInfo {
                         size: CropSize {
                             x: x as u32,
                             y: y as u32,
                             width: (crop_width as f64 * scale) as u32,
                             height: (crop_height as f64 * scale) as u32,
                         },
-                        score: CropScore{..CropScore::default()},
+                        score: CropScore { ..CropScore::default() },
                     });
                 }
             }
