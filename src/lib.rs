@@ -170,8 +170,10 @@ impl SmartCrop {
                 img = img.resize((img_width as f64 * prescale) as u32,
                                  (img_height as f64 * prescale) as u32,
                                  image::FilterType::Lanczos3);
-                let ref mut fout = File::create(&Path::new("debug.thumb.jpg")).unwrap();
-                let _ = img.save(fout, image::JPEG);
+                if self.debug {
+                    let ref mut fout = File::create(&Path::new("debug.thumb.jpg")).unwrap();
+                    let _ = img.save(fout, image::JPEG);
+                }
                 self.crop_width = f64::floor(options.crop_width as f64 * prescale) as i32;
                 self.crop_height = f64::floor(options.crop_height as f64 * prescale) as i32;
             } else {
