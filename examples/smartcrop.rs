@@ -1,12 +1,12 @@
-extern crate smartcrop;
-extern crate image;
 extern crate chrono;
+extern crate image;
+extern crate smartcrop;
 
+use chrono::UTC;
+use smartcrop::SmartCrop;
 use std::env;
 use std::fs::File;
 use std::path::Path;
-use chrono::UTC;
-use smartcrop::SmartCrop;
 
 fn main() {
     let file = if env::args().count() == 2 {

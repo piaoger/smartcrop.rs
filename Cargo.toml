@@ -4,5 +4,5 @@ version = "0.1.0"
 authors = ["Hideo Hattori <hhatto.jp@gmail.com>"]
 
 [dependencies]
-image = "0.10"
-chrono = "0.2"
+image = "0.23"
+chrono = "*"

@@ -1,10 +1,11 @@
 extern crate image;
 
 use std::clone::Clone;
-use std::path::Path;
 use std::fs::File;
-use image::{GenericImage, DynamicImage, Rgb, Rgba, ImageBuffer, ImageRgb8};
+use std::path::Path;
 
+use image::DynamicImage::ImageRgb8;
+use image::{GenericImage, GenericImageView, ImageBuffer, Rgb, Rgba};
 
 #[derive(Debug)]
 pub struct CropResult {
@@ -155,24 +156,30 @@ impl SmartCrop {
         let mut scale = 1.;
         let mut prescale = 1.;
         if options.width != 0 && options.height != 0 {
-            scale = f64::min(img_width as f64 / options.width as f64, img_height as f64 / options.height as f64);
+            scale = f64::min(
+                img_width as f64 / options.width as f64,
+                img_height as f64 / options.height as f64,
+            );
             options.crop_width = f64::floor(options.width as f64 * scale) as i32;
             options.crop_height = f64::floor(options.height as f64 * scale) as i32;
             // img = 100x100, width = 95x95, scale = 100/95, 1/scale > min
             // don't set minscale smaller than 1/scale
             // -> don't pick crops that need upscaling
-            options.min_scale = f64::min(options.max_scale, f64::max(1. / scale, (options.min_scale)));
+            options.min_scale =
+                f64::min(options.max_scale, f64::max(1. / scale, (options.min_scale)));
         }
 
         if options.width != 0 && options.height != 0 && options.prescale != false {
             prescale = 1. / scale / options.min_scale;
             if prescale < 1. {
-                img = img.resize((img_width as f64 * prescale) as u32,
-                                 (img_height as f64 * prescale) as u32,
-                                 image::FilterType::Lanczos3);
+                img = img.resize(
+                    (img_width as f64 * prescale) as u32,
+                    (img_height as f64 * prescale) as u32,
+                    image::imageops::FilterType::Lanczos3,
+                );
                 if self.debug {
-                    let ref mut fout = File::create(&Path::new("debug.thumb.jpg")).unwrap();
-                    let _ = img.save(fout, image::JPEG);
+                    //let ref mut fout = File::create(&Path::new("debug.thumb.jpg")).unwrap();
+                    let _ = img.save_with_format("debug.thumb.jpg", image::ImageFormat::Jpeg);
                 }
                 self.crop_width = f64::floor(options.crop_width as f64 * prescale) as i32;
                 self.crop_height = f64::floor(options.crop_height as f64 * prescale) as i32;
@@ -201,15 +208,22 @@ impl SmartCrop {
         result
     }
 
-    fn detect_edge(&mut self, img: &DynamicImage, output: &mut ImageBuffer<Rgb<u8>, Vec<u8>>) {
+    fn detect_edge(
+        &mut self,
+        img: &image::DynamicImage,
+        output: &mut ImageBuffer<Rgb<u8>, Vec<u8>>,
+    ) {
         let (w, h) = img.dimensions();
         for (x, y, output_pixel) in output.enumerate_pixels_mut() {
             let pixel = img.get_pixel(x, y);
             let mut lightness = if x == 0 || x >= w - 1 || y == 0 || y >= h - 1 {
                 sample(pixel)
             } else {
-                sample(pixel) * 4. - sample(img.get_pixel(x - 1, y)) - sample(img.get_pixel(x, y - 1)) -
-                sample(img.get_pixel(x, y + 1)) - sample(img.get_pixel(x + 1, y))
+                sample(pixel) * 4.
+                    - sample(img.get_pixel(x - 1, y))
+                    - sample(img.get_pixel(x, y - 1))
+                    - sample(img.get_pixel(x, y + 1))
+                    - sample(img.get_pixel(x + 1, y))
             };
             lightness = if lightness < 0. {
                 0.
@@ -225,13 +239,19 @@ impl SmartCrop {
         }
     }
 
-    fn detect_skin(&mut self, img: &DynamicImage, output: &mut ImageBuffer<Rgb<u8>, Vec<u8>>) {
+    fn detect_skin(
+        &mut self,
+        img: &image::DynamicImage,
+        output: &mut ImageBuffer<Rgb<u8>, Vec<u8>>,
+    ) {
         for (x, y, output_pixel) in output.enumerate_pixels_mut() {
             let pixel = img.get_pixel(x, y);
             let lightness = sample(pixel) / 255.;
             let skin = self.get_skin_color(pixel);
-            let r: u8 = if skin > self.skin_threshold && lightness >= self.skin_brightness_min &&
-                           lightness <= self.skin_brightness_max {
+            let r: u8 = if skin > self.skin_threshold
+                && lightness >= self.skin_brightness_min
+                && lightness <= self.skin_brightness_max
+            {
                 let mut tr = (skin - self.skin_threshold) * (255. / (1. - self.skin_threshold));
                 tr = if tr < 0. {
                     0.
@@ -251,14 +271,21 @@ impl SmartCrop {
         }
     }
 
-    fn detect_saturation(&mut self, img: &DynamicImage, output: &mut ImageBuffer<Rgb<u8>, Vec<u8>>) {
+    fn detect_saturation(
+        &mut self,
+        img: &image::DynamicImage,
+        output: &mut ImageBuffer<Rgb<u8>, Vec<u8>>,
+    ) {
         for (x, y, output_pixel) in output.enumerate_pixels_mut() {
             let pixel = img.get_pixel(x, y);
             let lightness = sample(pixel) / 255.;
             let sat = saturation(pixel);
-            let b: u8 = if sat > self.saturation_threshold && lightness >= self.saturation_brightness_min &&
-                           lightness <= self.saturation_brightness_max {
-                let mut tr = (sat - self.saturation_threshold) * (255. / (1. - self.saturation_threshold));
+            let b: u8 = if sat > self.saturation_threshold
+                && lightness >= self.saturation_brightness_min
+                && lightness <= self.saturation_brightness_max
+            {
+                let mut tr =
+                    (sat - self.saturation_threshold) * (255. / (1. - self.saturation_threshold));
                 tr = if tr < 0. {
                     0.
                 } else if tr > 255. {
@@ -311,7 +338,7 @@ impl SmartCrop {
         s + d
     }
 
-    fn get_score(&mut self, img: &DynamicImage, crop: &CropSize) -> CropScore {
+    fn get_score(&mut self, img: &image::DynamicImage, crop: &CropSize) -> CropScore {
         let mut detail = 0.;
         let mut skin = 0.;
         let mut saturation = 0.;
@@ -330,12 +357,16 @@ impl SmartCrop {
                 let d = pixel[1] as f64 / 255.;
                 skin = skin + (pixel[0] as f64) / 255. * (d + self.skin_bias) * importance;
                 detail = detail + d * importance;
-                saturation = saturation + (pixel[2] as f64) / 255. * (d + self.saturation_bias) * importance;
+                saturation =
+                    saturation + (pixel[2] as f64) / 255. * (d + self.saturation_bias) * importance;
             }
         }
 
-        let total = (detail * self.detail_weight + skin * self.skin_weight + saturation * self.saturation_weight) /
-                    crop.width as f64 / crop.height as f64;
+        let total = (detail * self.detail_weight
+            + skin * self.skin_weight
+            + saturation * self.saturation_weight)
+            / crop.width as f64
+            / crop.height as f64;
         CropScore {
             total: total,
             detail: detail,
@@ -344,7 +375,7 @@ impl SmartCrop {
         }
     }
 
-    fn analyse(&mut self, img: DynamicImage) -> CropResult {
+    fn analyse(&mut self, img: image::DynamicImage) -> CropResult {
         let (size_x, size_y) = img.dimensions();
         let mut output = ImageBuffer::new(size_x, size_y);
 
@@ -352,10 +383,11 @@ impl SmartCrop {
         self.detect_skin(&img, &mut output);
         self.detect_saturation(&img, &mut output);
 
-        let score_output = ImageRgb8(output)
-            .resize(((size_x as f64 / self.score_down_sample as f64) as f64).ceil() as u32,
-                    ((size_y as f64 / self.score_down_sample as f64) as f64).ceil() as u32,
-                    image::FilterType::Lanczos3);
+        let score_output = ImageRgb8(output).resize(
+            ((size_x as f64 / self.score_down_sample as f64) as f64).ceil() as u32,
+            ((size_y as f64 / self.score_down_sample as f64) as f64).ceil() as u32,
+            image::imageops::FilterType::Lanczos3,
+        );
 
         let mut top_score = i32::min_value() as f64;
         let mut top_crop: Option<CropInfo> = None;
@@ -375,7 +407,7 @@ impl SmartCrop {
         }
     }
 
-    fn crops(&mut self, img: DynamicImage) -> Vec<CropInfo> {
+    fn crops(&mut self, img: image::DynamicImage) -> Vec<CropInfo> {
         let mut crops = Vec::new();
         let (w, h) = img.dimensions();
         let min_dimension = if w > h { h } else { w };
@@ -392,8 +424,10 @@ impl SmartCrop {
         let range_min = (self.min_scale * 100.) as u32;
         let range_max = ((self.max_scale + self.scale_step) * 100.) as u32;
         let range_step = (self.scale_step * 100.) as u32;
-        let mut scales: Vec<f64> =
-            (range_min..range_max).filter(|v| v % range_step == 0).map(|v| v as f64 / 100.).collect();
+        let mut scales: Vec<f64> = (range_min..range_max)
+            .filter(|v| v % range_step == 0)
+            .map(|v| v as f64 / 100.)
+            .collect();
         scales.reverse();
 
         for scale in scales.iter() {
@@ -412,7 +446,9 @@ impl SmartCrop {
                             width: (crop_width as f64 * scale) as u32,
                             height: (crop_height as f64 * scale) as u32,
                         },
-                        score: CropScore { ..CropScore::default() },
+                        score: CropScore {
+                            ..CropScore::default()
+                        },
                     });
                 }
             }
@@ -423,10 +459,10 @@ impl SmartCrop {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
     use super::*;
     use image;
     use std::fs::File;
+    use std::path::Path;
 
     #[test]
     fn it_works() {
@@ -441,6 +477,6 @@ mod tests {
 
         let output_img = img.crop(size.x, size.y, size.width, size.height);
         let ref mut fout = File::create(&Path::new("out.jpg")).unwrap();
-        let _ = output_img.save(fout, image::JPEG);
+        let _ = output_img.save(fout, image::ImageFormat::Jpeg);
     }
 }
