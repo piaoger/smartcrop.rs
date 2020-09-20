@@ -1,4 +1,3 @@
-extern crate image;
 
 use std::clone::Clone;
 use std::fs::File;
